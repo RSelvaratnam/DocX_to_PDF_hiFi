@@ -68,4 +68,20 @@ def convert_docx_to_pdf(input_path, output_path):
             doc.Close(SaveChanges=False)  # Close the document without saving changes
         word.Quit()  # Shut down the Word application
         word = None  # Release the COM object reference to free memory
+        
+# Example usage (uncomment and set paths to use):
+# convert_docx_to_pdf("C:/path/to/input.docx", "C:/path/to/output.pdf")
 
+# Command-line interface for direct usage from terminal/command prompt.
+import sys
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage:")
+        print("  python docx2pdf.py <input.docx> <output.pdf>")
+        print("\nExample:")
+        print('  python docx2pdf.py "C:\\My Documents\\report.docx" "C:\\My Documents\\report.pdf"')
+    else:
+        input_path = sys.argv[1]
+        output_path = sys.argv[2]
+        convert_docx_to_pdf(input_path, output_path)
