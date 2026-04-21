@@ -68,4 +68,6 @@ def convert_docx_to_pdf(input_path, output_path):
             doc.Close(SaveChanges=False)  # Close the document without saving changes
         word.Quit()  # Shut down the Word application
         word = None  # Release the COM object reference to free memory
-
+        
+# Example usage (uncomment and set paths to use):
+# convert_docx_to_pdf("C:/path/to/input.docx", "C:/path/to/output.pdf")
