@@ -14,10 +14,10 @@ def set_pdf_to_open_with_bookmarks(pdf_path):
     writer = PdfWriter()
     writer.clone_document_from_reader(reader) # keeps Word bookmarks
 
-    # 1. Show bookmarks sidebar - works on all pypdf versions
+    # Show bookmarks sidebar - works on all pypdf versions
     writer._root_object[NameObject("/PageMode")] = NameObject("/UseOutlines")
 
-    # 2. Open to first page
+    # Open to first page
     first_page_ref = writer.pages[0].indirect_reference
     writer._root_object[NameObject("/OpenAction")] = ArrayObject([first_page_ref, NameObject("/Fit")])
 
