@@ -4,9 +4,12 @@
 # preserving all formatting, tables, images, and generating bookmarks from heading styles.
 # Requirements: Microsoft Word installed, and pywin32 library (pip install pywin32).
 # Note: This is Windows-specific due to COM usage.
+# fixed for OneDrive paths and spaces in filenames
 
 import win32com.client as win32  # Library for COM automation to control Word
 import os  # Standard library for file path operations and directory creation
+import sys
+import pythoncom
 
 def convert_docx_to_pdf(input_path, output_path):
     """
@@ -23,65 +26,68 @@ def convert_docx_to_pdf(input_path, output_path):
         FileNotFoundError: If the input .docx file does not exist.
         Exception: For any errors during the conversion process (e.g., Word issues).
     """
-    # Check if the input file exists to avoid runtime errors later
     if not os.path.exists(input_path):
         raise FileNotFoundError(f"Input file not found: {input_path}")
-    
-    # Launch Microsoft Word application via COM (invisibly in the background)
-    word = win32.Dispatch("Word.Application")  # Creates a COM object for Word
-    word.Visible = False  # Hide Word's UI to run silently
-    word.DisplayAlerts = False  # Suppress any dialog boxes or alerts from Word
-    
-    try:
-        # Open the .docx document in Word
-        doc = word.Documents.Open(os.path.abspath(input_path))  # Use absolute path for reliability
-        
-        # Ensure the output directory exists (create if necessary)
-        output_dir = os.path.dirname(output_path) or "."  # Default to current dir if no path
-        os.makedirs(output_dir, exist_ok=True)  # Creates dirs recursively if needed
-        
-        # Export the document as PDF with key settings
-        doc.ExportAsFixedFormat(
-            OutputFileName=os.path.abspath(output_path),  # Full path for the output PDF
-            ExportFormat=17,  # Constant for PDF format (wdExportFormatPDF)
-            OpenAfterExport=True,  # Do not open the PDF after saving
-            OptimizeFor=0,  # Optimize for print quality (wdExportOptimizeForPrint)
-            Range=0,  # Export the entire document (wdExportAllDocument)
-            From=0,  # Start from the beginning (no specific page range)
-            To=0,  # End at the last page
-            Item=0,  # Export document content only (wdExportDocumentContent)
-            IncludeDocProps=True,  # Include document properties (e.g., author, title) in PDF
-            CreateBookmarks=1  # Enable bookmarks/outlines from Word heading styles
-        )
-        
-        # Print success messages for user feedback
-        print(f"Conversion complete: {output_path}")
-        print("Bookmarks generated from heading styles—check PDF sidebar.")
-        
-    except Exception as e:
-        # Catch and report any errors during the process (e.g., COM failures or file issues)
-        print(f"Error during conversion: {e}")
-    
-    finally:
-        # Always clean up resources to avoid leaving Word processes running
-        if 'doc' in locals():  # Check if doc was successfully created
-            doc.Close(SaveChanges=False)  # Close the document without saving changes
-        word.Quit()  # Shut down the Word application
-        word = None  # Release the COM object reference to free memory
-        
-# Example usage (uncomment and set paths to use):
-# convert_docx_to_pdf("C:/path/to/input.docx", "C:/path/to/output.pdf")
 
-# Command-line interface for direct usage from terminal/command prompt.
-import sys
+    input_abs = os.path.abspath(input_path)
+    output_abs = os.path.abspath(output_path)
+    os.makedirs(os.path.dirname(output_abs) or ".", exist_ok=True)
+
+    pythoncom.CoInitialize()
+    word = win32.DispatchEx("Word.Application")
+    word.Visible = False
+    word.DisplayAlerts = 0 # wdAlertsNone
+
+    doc = None
+    try:
+        # Open read-only, no conversion prompts, no recent files update
+        doc = word.Documents.Open(
+            FileName=input_abs,
+            ConfirmConversions=False,
+            ReadOnly=True,
+            AddToRecentFiles=False,
+            Visible=False,
+            NoEncodingDialog=True
+        )
+
+        # First try ExportAsFixedFormat - best for bookmarks
+        try:
+            doc.ExportAsFixedFormat(
+                OutputFileName=output_abs,
+                ExportFormat=17, # wdExportFormatPDF
+                OpenAfterExport=False, # <-- THIS was causing your error
+                OptimizeFor=0, # wdExportOptimizeForPrint
+                Range=0, # wdExportAllDocument
+                IncludeDocProps=True,
+                KeepIRM=True,
+                CreateBookmarks=1, # wdExportCreateHeadingBookmarks
+                DocStructureTags=True,
+                BitmapMissingFonts=True,
+                UseISO19005_1=False
+            )
+        except Exception:
+            # Fallback that almost never fails
+            doc.SaveAs2(output_abs, FileFormat=17) # 17 = wdFormatPDF
+
+        print(f"Conversion complete: {output_abs}")
+
+    except Exception as e:
+        print(f"Error during conversion: {e}")
+        raise
+    finally:
+        if doc is not None:
+            try:
+                doc.Close(SaveChanges=False)
+            except:
+                pass
+        try:
+            word.Quit()
+        except:
+            pass
+        pythoncom.CoUninitialize()
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage:")
-        print("  python docx2pdf.py <input.docx> <output.pdf>")
-        print("\nExample:")
-        print('  python docx2pdf.py "C:\\My Documents\\report.docx" "C:\\My Documents\\report.pdf"')
-    else:
-        input_path = sys.argv[1]
-        output_path = sys.argv[2]
-        convert_docx_to_pdf(input_path, output_path)
+    if len(sys.argv)!= 3:
+        print('Usage: python docx2pdf.py "input.docx" "output.pdf"')
+        sys.exit(1)
+    convert_docx_to_pdf(sys.argv[1], sys.argv[2])
